@@ -19,6 +19,10 @@ UUID = "15b4d4e6-d24e-5344-9789-9501cded9c3c"
         f"https://hf.co/datasets/{CYP}",
         f"https://scigantic.com/hf/{CYP}",
         f"  hf:{CYP}  ",
+        f"hf://datasets/{CYP}",
+        f"hf:{CYP}?x=1",
+        f"https://huggingface.co/datasets/{CYP}?library=datasets",
+        f"https://huggingface.co/datasets/{CYP}/blob/main/README.md",
     ],
 )
 def test_hf_forms_parse_to_the_same_ref(ref):
@@ -58,6 +62,13 @@ def test_archive_forms(ref):
         "https://scigantic.com/explore",
         "https://example.com/datasets/a/b",
         "not a ref",
+        "a../b",
+        "a/..b",
+        ".hidden/repo",
+        "-dash/repo",
+        "o/" + "x" * 97,
+        "hf:",
+        "hf://datasets/onlyowner",
     ],
 )
 def test_rejects_garbage(ref):
@@ -68,3 +79,8 @@ def test_rejects_garbage(ref):
 def test_url_for_is_offline_string_work():
     assert url_for(f"hf:{CYP}") == f"https://scigantic.com/hf/{CYP}"
     assert url_for(UUID) == f"https://scigantic.com/archive/{UUID}"
+
+
+def test_str_of_ref():
+    assert str(parse(f"hf:{CYP}")) == CYP
+    assert str(parse(UUID)) == UUID

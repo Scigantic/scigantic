@@ -74,9 +74,26 @@ def test_open_json_calls_resolve_api(capsys, no_browser, monkeypatch):
     assert json.loads(capsys.readouterr().out) == reply
 
 
-@pytest.mark.parametrize("reason,status", [("gated", 403), ("private", 403), ("license", 403), ("too_large", 413), ("not_found", 404), ("rate_limited", 429), ("invalid_repo", 400), ("disabled", 403)])
+@pytest.mark.parametrize(
+    "reason,status",
+    [
+        ("gated", 403),
+        ("private", 403),
+        ("license", 403),
+        ("too_large", 413),
+        ("not_found", 404),
+        ("rate_limited", 429),
+        ("invalid_repo", 400),
+        ("disabled", 403),
+    ],
+)
 def test_resolve_errors_carry_the_api_reason(capsys, no_browser, monkeypatch, reason, status):
-    payload = {"success": False, "reason": reason, "message": f"refused: {reason}", "huggingFaceUrl": f"https://huggingface.co/datasets/{CYP}"}
+    payload = {
+        "success": False,
+        "reason": reason,
+        "message": f"refused: {reason}",
+        "huggingFaceUrl": f"https://huggingface.co/datasets/{CYP}",
+    }
     monkeypatch.setattr(catalog.urllib.request, "urlopen", fake_urlopen({f"/api/hf/{CYP}": (status, payload)}))
     with pytest.raises(SciganticError) as ei:
         scigantic.resolve(f"hf:{CYP}")
@@ -119,7 +136,9 @@ def test_invalid_ref_exit_code_2(capsys, no_browser):
 
 def test_search_prints_id_and_title(capsys, monkeypatch):
     rows = {"data": [{"id": "abc", "title": "First"}, {"id": "def", "title": "Second"}]}
-    monkeypatch.setattr(catalog.urllib.request, "urlopen", fake_urlopen({"/api/archives?search=quercetin&limit=2": rows}))
+    monkeypatch.setattr(
+        catalog.urllib.request, "urlopen", fake_urlopen({"/api/archives?search=quercetin&limit=2": rows})
+    )
     rc = cli.main(["search", "quercetin", "--limit", "2"])
     assert rc == 0
     assert capsys.readouterr().out.splitlines() == ["abc  First", "def  Second"]
@@ -159,3 +178,61 @@ def test_resolve_of_archive_id_uses_catalog_get(monkeypatch):
     assert out["archiveId"] == item["id"]
     assert out["title"] == "CYP"
     assert out["archiveUrl"] == "https://scigantic.com/archive/15b4d4e6-d24e-5344-9789-9501cded9c3c"
+
+
+def test_search_json_and_api_url_flag(capsys, monkeypatch):
+    seen = []
+
+    def _open(req, timeout=None):
+        seen.append(req.full_url)
+        return FakeResponse(json.dumps({"data": [{"id": "a", "title": "A"}]}).encode())
+
+    monkeypatch.setattr(catalog.urllib.request, "urlopen", _open)
+    rc = cli.main(["--api-url", "https://staging-api.scigantic.com", "search", "iris", "--json", "--limit", "3"])
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out) == [{"id": "a", "title": "A"}]
+    assert seen == ["https://staging-api.scigantic.com/api/archives?search=iris&limit=3"]
+
+
+def test_files_command_lists_paths(capsys, monkeypatch):
+    import scigantic.hf as hf
+
+    monkeypatch.setattr(hf, "files", lambda ref, revision=None: ["README.md", "data/x.csv"])
+    rc = cli.main(["files", f"hf:{CYP}", "--revision", "main"])
+    assert rc == 0
+    assert capsys.readouterr().out.split() == ["README.md", "data/x.csv"]
+
+
+def test_files_command_without_extra_is_exit_1(capsys, monkeypatch):
+    import scigantic.hf as hf
+
+    def _raise(ref, revision=None):
+        raise ImportError("huggingface_hub is not installed")
+
+    monkeypatch.setattr(hf, "files", _raise)
+    assert cli.main(["files", f"hf:{CYP}"]) == 1
+    assert "huggingface_hub is not installed" in capsys.readouterr().err
+
+
+def test_rate_limited_prints_retry_after(capsys, monkeypatch, no_browser):
+    def _open(req, timeout=None):
+        raise urllib.error.HTTPError(
+            req.full_url,
+            429,
+            "err",
+            {"Retry-After": "60"},
+            io.BytesIO(b'{"success":false,"reason":"rate_limited","message":"slow"}'),
+        )
+
+    monkeypatch.setattr(catalog.urllib.request, "urlopen", _open)
+    assert cli.main(["open", f"hf:{CYP}", "--json", "--no-browser"]) == 1
+    err = capsys.readouterr().err
+    assert "rate_limited: slow" in err and "retry after: 60 s" in err
+
+
+def test_module_entry_point():
+    import runpy
+
+    with pytest.raises(SystemExit) as ei:
+        runpy.run_module("scigantic", run_name="__main__", alter_sys=True)
+    assert ei.value.code == 2  # no command given -> argparse error

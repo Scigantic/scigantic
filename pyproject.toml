@@ -4,15 +4,18 @@ build-backend = "hatchling.build"
 
 [project]
 name = "scigantic"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Open a public dataset in a browser notebook with the files already mounted, or stream it locally over hf://."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [{ name = "Scigantic" }]
+authors = [{ name = "Scigantic", email = "aaron@scigantic.com" }]
 keywords = ["datasets", "huggingface", "notebook", "jupyter", "open-data", "science"]
 classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
   "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
@@ -26,7 +29,13 @@ dependencies = []
 
 [project.optional-dependencies]
 hf = ["huggingface_hub>=0.25"]
-dev = ["pytest>=7", "huggingface_hub>=0.25"]
+dev = [
+  "pytest>=7",
+  "pytest-cov>=4",
+  "ruff>=0.6",
+  "mypy>=1.10",
+  "huggingface_hub>=0.25",
+]
 
 [project.scripts]
 scigantic = "scigantic.cli:main"
@@ -35,9 +44,40 @@ scigantic = "scigantic.cli:main"
 Homepage = "https://scigantic.com"
 Repository = "https://github.com/Scigantic/scigantic"
 Documentation = "https://huggingface.co/docs/hub/datasets-scigantic"
+Changelog = "https://github.com/Scigantic/scigantic/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Scigantic/scigantic/issues"
+
+[tool.hatch.version]
+path = "scigantic/_version.py"
 
 [tool.hatch.build.targets.sdist]
-include = ["scigantic", "tests", "README.md", "LICENSE", "pyproject.toml"]
+include = ["scigantic", "tests", "README.md", "LICENSE", "CHANGELOG.md", "pyproject.toml"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["scigantic"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "W"]
+ignore = ["UP006", "UP007", "UP035", "UP045"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+
+[tool.mypy]
+strict = true
+warn_unreachable = true
+ignore_missing_imports = true
+files = ["scigantic"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --cov=scigantic --cov-report=term-missing --cov-fail-under=90"
+markers = ["live: hits the real scigantic.com API (set SCIGANTIC_LIVE_TESTS=1)"]
+
+[tool.coverage.run]
+branch = true
+omit = ["scigantic/__main__.py"]

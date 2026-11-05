@@ -1,18 +1,22 @@
 name: Publish to PyPI
 
-# Publishes on a version tag (v0.1.0) using the PYPI_KEY token secret, the
-# same pattern as the org's other packages. Gated on the tests passing.
+# Publishes on a version tag (v0.2.0) using the PYPI_KEY token secret, the
+# same pattern as the org's other packages. Gated on lint and tests passing,
+# and the tag must match the version in scigantic/_version.py.
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.9', '3.12']
+        python-version: ['3.9', '3.13']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,10 +25,15 @@ jobs:
       - run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-          pytest -q
+      - run: ruff check . && mypy && pytest
+      - name: Tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          v=$(python -c "import scigantic; print(scigantic.__version__)")
+          test "v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != v$v"; exit 1; }
 
   publish:
-    needs: test
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,9 +42,19 @@ jobs:
           python-version: '3.12'
       - name: Build
         run: |
-          python -m pip install --upgrade pip build
+          python -m pip install --upgrade pip build twine
           python -m build
+          twine check dist/*
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_KEY }}
+      - name: GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes=$(awk -v tag="${GITHUB_REF_NAME#v}" '
+            $0 ~ "^## " { printing = ($0 ~ tag) ; next }
+            printing { print }' CHANGELOG.md)
+          gh release create "${GITHUB_REF_NAME}" dist/* --title "${GITHUB_REF_NAME}" --notes "${notes:-See CHANGELOG.md}"
