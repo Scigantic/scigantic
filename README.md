@@ -2,8 +2,7 @@
 
 `scigantic` turns a dataset name into a notebook. Give it a Hugging Face dataset
 (`owner/repo`) or a Scigantic archive id and it opens a page on scigantic.com where
-the dataset is mounted read-only inside a hosted JupyterLab, with a starter notebook
-that already knows the file layout. The same package can list and stream the files
+the dataset is mounted read-only inside a hosted JupyterLab with a starter notebook. The same package can list and stream the files
 of a Hugging Face dataset locally over `hf://`, so you can look before you launch.
 
 ## Install
