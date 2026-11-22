@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: scigantic
+abstract: "Open a public dataset in a browser notebook with the files already mounted, or stream it locally over hf://."
+authors:
+  - name: Scigantic
+    website: https://scigantic.com
+repository-code: https://github.com/Scigantic/scigantic
+url: https://pypi.org/project/scigantic/
+license: MIT
+keywords:
+  - "datasets"
+  - "huggingface"
+  - "notebook"
+  - "jupyter"
+  - "open-data"
+  - "science"
+version: "0.2.0"
+date-released: '2026-11-05'
